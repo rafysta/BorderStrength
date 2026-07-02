@@ -64,8 +64,11 @@ sh BS.sh --method <large|micro> -i <input> -o <score file> [options]
 Examples:
 
 ```
+# cohesin domains (pombe, 5kb full matrix)
+sh BS.sh --method large -i ALL.rds        -o cohesin_BS.txt --window 65kb
+
 # condensin domains (pombe, 10kb full matrix)
-sh BS.sh --method large -i ALL.rds        -o condensin_BS.txt --window 100kb
+sh BS.sh --method large -i ALL.rds        -o condensin_BS.txt --window 130kb
 
 # TADs (human, 40kb per-chromosome matrix)
 sh BS.sh --method large -i chr22.matrix.gz -o tad_BS.txt      --window 500kb
