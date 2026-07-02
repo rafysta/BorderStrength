@@ -81,15 +81,15 @@ case "${METHOD}" in
 	large)
 		[ "${WINDOW}" = "NA" ] && WINDOW=100kb
 		Rscript --vanilla "${DIR_LIB}/Calculate_BS_large.R" \
-			-i "${FILE_IN}" -o "${FILE_OUT}" --domain "${FILE_DOM}" \
-			--window "${WINDOW}" --chr "${CHR}" --start "${START}" --end "${END}" \
-			--threshold "${THRESHOLD}" --min_close "${MIN_CLOSE}"
+			-i "${FILE_IN}" -o "${FILE_OUT}" --domain="${FILE_DOM}" \
+			--window="${WINDOW}" --chr="${CHR}" --start="${START}" --end="${END}" \
+			--threshold="${THRESHOLD}" --min_close="${MIN_CLOSE}"
 		;;
 	micro)
 		[ "${WINDOW}" = "NA" ] && WINDOW=3000
 		Rscript --vanilla "${DIR_LIB}/Calculate_BS_micro.R" \
-			-i "${FILE_IN}" -o "${FILE_OUT}" --bin "${FILE_BIN}" --domain "${FILE_DOM}" \
-			--window "${WINDOW}" --chr "${CHR}" --start "${START}" --end "${END}"
+			-i "${FILE_IN}" -o "${FILE_OUT}" --bin="${FILE_BIN}" --domain="${FILE_DOM}" \
+			--window="${WINDOW}" --chr="${CHR}" --start="${START}" --end="${END}"
 		;;
 	*)
 		echo "Unknown --method '${METHOD}' (use large or micro)"; exit 1 ;;
