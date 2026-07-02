@@ -1,24 +1,26 @@
 Demo data for BorderStrength
 ============================
 
-The demo is a small synthetic single-chromosome (chr II) contact map at 250 bp
-resolution with three engineered domain boundaries (at bins 140, 300 and 455).
-It is provided in the two input formats BorderStrength accepts:
+MICRO method (diagonal-only, fine-scale) -- synthetic chr II, 250 bp,
+three engineered boundaries:
+  demo_map.txt.gz       text map format (loc1  loc2  score, loc=chr:start:end)
+  demo_hic200.txt.gz    hic200-cpp contact format (bin1  bin2  score)
+  demo_bindef.txt       bin definition for the hic200-cpp format
+  expected_demo_BS.txt        expected score output
+  expected_demo_domains.txt   expected domain intervals
 
-  demo_map.txt.gz      text map/matrix format (loc1  loc2  score, loc=chr:start:end)
-  demo_hic200.txt.gz   hic200-cpp contact format (bin1  bin2  score)
-  demo_bindef.txt      bin definition for the hic200-cpp format (bin  chr  start  end)
+LARGE method (full matrix, cohesin/condensin/TAD) -- synthetic chr II,
+10 kb dense matrix, two engineered boundaries:
+  demo_large.matrix           dense contact matrix (rownames/colnames chr:start:end)
+  expected_large_BS.txt       expected score output
+  expected_large_domains.txt  expected domain intervals
 
-  expected_demo_BS.txt expected output (chr start end BS BS.norm boundary)
+Reproduce everything:
+  sh demo_data/run_demo.sh
 
-Reproduce the expected output:
+Or individually:
+  sh BS.sh --method micro -i demo_data/demo_map.txt.gz    -o micro_BS.txt --window 3000
+  sh BS.sh --method large -i demo_data/demo_large.matrix   -o large_BS.txt --window 100kb
+  Rscript Draw_BS.R -i large_BS.txt -o large.png --chr II --domain large_BS_domains.txt
 
-  # map / matrix format
-  sh BS.sh -i demo_data/demo_map.txt.gz -o demo_BS.txt --window 3000
-
-  # hic200-cpp format (identical result)
-  sh BS.sh -i demo_data/demo_hic200.txt.gz --bin demo_data/demo_bindef.txt \
-           -o demo_BS.txt --window 3000
-
-Both commands run in a few seconds and reproduce expected_demo_BS.txt
-(small differences in the last shown digit can occur across BLAS/locale settings).
+Small differences in the last shown digit can occur across BLAS/locale settings.

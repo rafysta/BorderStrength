@@ -1,7 +1,7 @@
 #!/bin/bash
 # BorderStrength : border strength (BS) / boundary score from Hi-C data
-# BS = (mean intra-upstream + mean intra-downstream) / mean inter(upstream vs downstream)
-# A high BS marks a strong insulation point, i.e. a domain boundary.
+#   --method large  (default) : cohesin / condensin / TAD from full ICE2 matrices (sum-based)
+#   --method micro            : fine-scale domains from diagonal-only data (mean-based)
 
 get_usage(){
 	cat <<EOF
@@ -9,118 +9,88 @@ get_usage(){
 Usage : $0 [OPTION]
 
 Description
-	-h, --help
-		show help
+	-h, --help               show help
+	-v, --version            show version
 
-	-v, --version
-		show version
+	-m, --method [large|micro]
+		large (default) : large/mid domains (cohesin, condensin, TAD) from a
+		                  full ICE2-normalised matrix (.rds or .matrix.gz)
+		micro           : fine-scale (micro) domains from diagonal-only data
+		                  (map/matrix, hic200-cpp with --bin, or .rds)
 
-	-i, --in [contact map file]
-		input contact map. One of:
-		  * text map/matrix : loc1<TAB>loc2<TAB>score  (loc = chr:start:end)
-		  * .rds matrix     : rownames "chr:start:end"
-		  * hic200-cpp out  : bin1<TAB>bin2<TAB>score   (give --bin as well)
+	-i, --in [file]          input contact matrix / data
+	-o, --out [file]         output score file (chr start end BS BS.norm boundary TADid TAD)
+	--domain [file]          output domain intervals [default: <out>_domains.txt]
 
-	-o, --out [output file]
-		output file (chr start end BS BS.norm boundary)
+	--bin [file]             (micro only) hic200-cpp bin definition file
+	-w, --window [bp]        window size in bp; accepts kb/Mb
+	                         (default: large=100kb, micro=3kb)
+	-c, --chr [chromosome]   restrict to one chromosome (default: all in the matrix)
+	--start [bp]             region start (requires --chr)
+	--end [bp]               region end   (requires --chr)
 
-	--bin [bin definition file]
-		bin definition file (bin<TAB>chr<TAB>start<TAB>end) from hic200-cpp
-		make_bin_def2. Supplying this switches --in to hic200-cpp bin-id format.
-
-	-w, --window [bp]
-		window size in bp (default 3000)
-
-	-c, --chr [chromosome]
-		chromosome to analyse (required if input holds >1 chromosome)
-
-	--start [bp]
-		region start (optional)
-
-	--end [bp]
-		region end (optional)
+	(large only)
+	--threshold [0]          min centred score to call a boundary
+	--min_close [2]          half-width (bins) of the local-maximum test
 EOF
 }
 
-get_version(){
-	echo "${0} version 1.0"
-}
+get_version(){ echo "${0} version 2.0"; }
 
-SHORT=hvi:o:w:c:
-LONG=help,version,in:,out:,bin:,window:,chr:,start:,end:
+SHORT=hvm:i:o:w:c:
+LONG=help,version,method:,in:,out:,domain:,bin:,window:,chr:,start:,end:,threshold:,min_close:
 PARSED=`getopt --options $SHORT --longoptions $LONG --name "$0" -- "$@"`
-if [ $? -ne 0 ]; then
-	exit 2
-fi
+if [ $? -ne 0 ]; then exit 2; fi
 eval set -- "$PARSED"
 
+METHOD=large
 FILE_BIN=NA
+FILE_DOM=NA
 CHR=NA
 START=-1
 END=-1
-WINDOW=3000
+WINDOW=NA
+THRESHOLD=0
+MIN_CLOSE=2
 
 while true; do
 	case "$1" in
-		-h|--help)
-			get_usage
-			exit 1
-			;;
-		-v|--version)
-			get_version
-			exit 1
-			;;
-		-i|--in)
-			FILE_IN="$2"
-			shift 2
-			;;
-		-o|--out)
-			FILE_OUT="$2"
-			shift 2
-			;;
-		--bin)
-			FILE_BIN="$2"
-			shift 2
-			;;
-		-w|--window)
-			WINDOW="$2"
-			shift 2
-			;;
-		-c|--chr)
-			CHR="$2"
-			shift 2
-			;;
-		--start)
-			START="$2"
-			shift 2
-			;;
-		--end)
-			END="$2"
-			shift 2
-			;;
-		--)
-			shift
-			break
-			;;
-		*)
-			echo "Programming error"
-			exit 3
-			;;
+		-h|--help)    get_usage; exit 1 ;;
+		-v|--version) get_version; exit 1 ;;
+		-m|--method)  METHOD="$2"; shift 2 ;;
+		-i|--in)      FILE_IN="$2"; shift 2 ;;
+		-o|--out)     FILE_OUT="$2"; shift 2 ;;
+		--domain)     FILE_DOM="$2"; shift 2 ;;
+		--bin)        FILE_BIN="$2"; shift 2 ;;
+		-w|--window)  WINDOW="$2"; shift 2 ;;
+		-c|--chr)     CHR="$2"; shift 2 ;;
+		--start)      START="$2"; shift 2 ;;
+		--end)        END="$2"; shift 2 ;;
+		--threshold)  THRESHOLD="$2"; shift 2 ;;
+		--min_close)  MIN_CLOSE="$2"; shift 2 ;;
+		--) shift; break ;;
+		*) echo "Programming error"; exit 3 ;;
 	esac
 done
 
 DIR_LIB=$(dirname $0)
+[ ! -n "${FILE_IN}" ]  && echo "Please specify input (--in)"  && exit 1
+[ ! -n "${FILE_OUT}" ] && echo "Please specify output (--out)" && exit 1
 
-[ ! -n "${FILE_IN}" ]  && echo "Please specify input contact map (--in)" && exit 1
-[ ! -n "${FILE_OUT}" ] && echo "Please specify output file (--out)"      && exit 1
-
-WINDOW=$(echo "$WINDOW" | sed -e 's/Mb/000kb/' -e 's/kb/000/')
-
-Rscript --vanilla "${DIR_LIB}/Calculate_BS.R" \
-	-i "${FILE_IN}" \
-	-o "${FILE_OUT}" \
-	--bin "${FILE_BIN}" \
-	--window "${WINDOW}" \
-	--chr "${CHR}" \
-	--start "${START}" \
-	--end "${END}"
+case "${METHOD}" in
+	large)
+		[ "${WINDOW}" = "NA" ] && WINDOW=100kb
+		Rscript --vanilla "${DIR_LIB}/Calculate_BS_large.R" \
+			-i "${FILE_IN}" -o "${FILE_OUT}" --domain "${FILE_DOM}" \
+			--window "${WINDOW}" --chr "${CHR}" --start "${START}" --end "${END}" \
+			--threshold "${THRESHOLD}" --min_close "${MIN_CLOSE}"
+		;;
+	micro)
+		[ "${WINDOW}" = "NA" ] && WINDOW=3000
+		Rscript --vanilla "${DIR_LIB}/Calculate_BS_micro.R" \
+			-i "${FILE_IN}" -o "${FILE_OUT}" --bin "${FILE_BIN}" --domain "${FILE_DOM}" \
+			--window "${WINDOW}" --chr "${CHR}" --start "${START}" --end "${END}"
+		;;
+	*)
+		echo "Unknown --method '${METHOD}' (use large or micro)"; exit 1 ;;
+esac
