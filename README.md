@@ -130,3 +130,24 @@ Run everything with `sh demo_data/run_demo.sh`. See `demo_data/About_demo_data.t
 # License
 
 GPL-3.0
+
+## Depth matching (micro method)
+
+For fair comparison across samples of unequal sequencing depth, `--method micro`
+can binomially thin the contact counts to a common total **before** computing BS
+(depth affects the *noise* of BS, not only its scale, so it must be equalised at
+the count level, not by rescaling the final scores).
+
+```
+sh BS.sh --method micro -i sample_200bp.txt.gz --bin bin_def_200bp.txt \
+         -o sample_BS.txt --domain sample_BS_domains.txt --window 3kb \
+         --downsample 5M --seed 1
+```
+
+* `--downsample N` : target **total contacts** (accepts `5M`, `8000000`, …). Each
+  cell count `c` is thinned as `Binomial(c, N/total)`. Off by default (`0`).
+* `--seed S`       : RNG seed for reproducible thinning (loop for replicates).
+* Samples whose total contacts are **below** the target are kept as-is and flagged
+  `[downsample] ... BELOW TARGET` — exclude them from the matched analysis.
+* Target the **contact** count (not raw reads): the valid-contact rate varies
+  widely between samples, so matching reads leaves a residual depth difference.

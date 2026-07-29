@@ -25,7 +25,9 @@ option_list <- list(
   make_option(c("--window"),    default = "3000", help = "window size in bp [default %default]"),
   make_option(c("--chr"),       default = "NA", help = "chromosome (default: all chromosomes present)"),
   make_option(c("--start"),     default = "-1", help = "region start (bp, requires --chr)"),
-  make_option(c("--end"),       default = "-1", help = "region end (bp, requires --chr)")
+  make_option(c("--end"),       default = "-1", help = "region end (bp, requires --chr)"),
+  make_option(c("--downsample"), default = "0", help = "target total contacts; binomial-thin counts before BS (accepts 5M/8000000; 0 = off) [default %default]"),
+  make_option(c("--seed"),       default = "1", help = "random seed for --downsample [default %default]")
 )
 opt <- parse_args(OptionParser(option_list = option_list))
 
@@ -39,6 +41,9 @@ windowSize<- parse_bp(opt$window)
 CHR       <- as.character(opt$chr)
 START     <- as.numeric(opt$start)
 END       <- as.numeric(opt$end)
+.parse_count <- function(x){ x<-as.character(x); x<-sub("[Mm]$","e6",x); x<-sub("[Kk]$","e3",x); as.numeric(x) }
+DOWNSAMPLE<- .parse_count(opt$downsample); if (is.na(DOWNSAMPLE)) DOWNSAMPLE <- 0
+SEED      <- as.integer(opt$seed)
 
 if (is.na(FILE_in) || FILE_in == "NA") stop("--in is required")
 if (FILE_out == "NA")                  stop("--out is required")
@@ -75,6 +80,23 @@ if (FILE_bin != "NA") {
   binSize <- as.integer(l1[[3]][1]) - as.integer(l1[[2]][1]) + 1
   D <- data.table(chr1 = as.character(l1[[1]]), s1 = as.integer(l1[[2]]),
                   chr2 = as.character(l2[[1]]), s2 = as.integer(l2[[2]]), score = as.numeric(D$score))
+}
+
+# ---- optional depth matching: binomial thinning of counts to a common total ----
+if (DOWNSAMPLE > 0) {
+  D[, score := as.numeric(score)]
+  total <- sum(D$score)
+  if (!isTRUE(all.equal(D$score, round(D$score)))) {
+    warning("--downsample given but scores are not integer counts; thinning skipped")
+  } else if (total > DOWNSAMPLE) {
+    set.seed(SEED)
+    p <- DOWNSAMPLE / total
+    D[, score := rbinom(.N, as.integer(round(score)), p)]
+    D <- D[score > 0]
+    cat(sprintf("[downsample] %.0f -> %.0f contacts (p=%.4f, seed=%d)\n", total, sum(D$score), p, SEED))
+  } else {
+    cat(sprintf("[downsample] total %.0f <= target %.0f : kept as-is (BELOW TARGET)\n", total, DOWNSAMPLE))
+  }
 }
 
 D <- D[chr1 == chr2]

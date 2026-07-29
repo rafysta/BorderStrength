@@ -25,6 +25,11 @@ Description
 	--bin [file]             (micro only) hic200-cpp bin definition file
 	-w, --window [bp]        window size in bp; accepts kb/Mb
 	                         (default: large=100kb, micro=3kb)
+
+	(micro only)
+	--downsample [N]         target total contacts; binomial-thin counts
+	                         before BS (accepts 5M/8000000; default off)
+	--seed [1]               random seed for --downsample
 	-c, --chr [chromosome]   restrict to one chromosome (default: all in the matrix)
 	--start [bp]             region start (requires --chr)
 	--end [bp]               region end   (requires --chr)
@@ -38,7 +43,7 @@ EOF
 get_version(){ echo "${0} version 2.0"; }
 
 SHORT=hvm:i:o:w:c:
-LONG=help,version,method:,in:,out:,domain:,bin:,window:,chr:,start:,end:,threshold:,min_close:
+LONG=help,version,method:,in:,out:,domain:,bin:,window:,chr:,start:,end:,threshold:,min_close:,downsample:,seed:
 PARSED=`getopt --options $SHORT --longoptions $LONG --name "$0" -- "$@"`
 if [ $? -ne 0 ]; then exit 2; fi
 eval set -- "$PARSED"
@@ -52,6 +57,8 @@ END=-1
 WINDOW=NA
 THRESHOLD=0
 MIN_CLOSE=2
+DOWNSAMPLE=0
+SEED=1
 
 while true; do
 	case "$1" in
@@ -68,6 +75,8 @@ while true; do
 		--end)        END="$2"; shift 2 ;;
 		--threshold)  THRESHOLD="$2"; shift 2 ;;
 		--min_close)  MIN_CLOSE="$2"; shift 2 ;;
+		--downsample) DOWNSAMPLE="$2"; shift 2 ;;
+		--seed)       SEED="$2"; shift 2 ;;
 		--) shift; break ;;
 		*) echo "Programming error"; exit 3 ;;
 	esac
@@ -89,7 +98,8 @@ case "${METHOD}" in
 		[ "${WINDOW}" = "NA" ] && WINDOW=3000
 		Rscript --vanilla "${DIR_LIB}/Calculate_BS_micro.R" \
 			-i "${FILE_IN}" -o "${FILE_OUT}" --bin="${FILE_BIN}" --domain="${FILE_DOM}" \
-			--window="${WINDOW}" --chr="${CHR}" --start="${START}" --end="${END}"
+			--window="${WINDOW}" --chr="${CHR}" --start="${START}" --end="${END}" \
+			--downsample="${DOWNSAMPLE}" --seed="${SEED}"
 		;;
 	*)
 		echo "Unknown --method '${METHOD}' (use large or micro)"; exit 1 ;;
